@@ -33,6 +33,8 @@ export function PongGame() {
   // Game state
   const [gameState, setGameState] = useState<GameState>("start");
   const [winner, setWinner] = useState<string | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [musicEnabled, setMusicEnabled] = useState<boolean>(true);
 
   const [leftPaddle, setLeftPaddle] = useState<Paddle>({
     x: 50,
@@ -66,6 +68,9 @@ export function PongGame() {
   const paddleHitSound = useRef<HTMLAudioElement | null>(null);
   const wallHitSound = useRef<HTMLAudioElement | null>(null);
   const scoreSound = useRef<HTMLAudioElement | null>(null);
+  const gameStartSound = useRef<HTMLAudioElement | null>(null);
+  const gameEndSound = useRef<HTMLAudioElement | null>(null);
+  const backgroundMusic = useRef<HTMLAudioElement | null>(null);
 
   // Safety check to prevent ball from getting stuck
   const preventStuckBall = useRef<{
@@ -84,29 +89,67 @@ export function PongGame() {
       paddleHitSound.current = new Audio("/sounds/paddle-hit.mp3");
       wallHitSound.current = new Audio("/sounds/wall-hit.mp3");
       scoreSound.current = new Audio("/sounds/score.mp3");
+      gameStartSound.current = new Audio("/sounds/game-start.mp3");
+      gameEndSound.current = new Audio("/sounds/game-end.mp3");
+      backgroundMusic.current = new Audio("/sounds/background-music.mp3");
+
+      // Configure background music to loop
+      if (backgroundMusic.current) {
+        backgroundMusic.current.loop = true;
+        backgroundMusic.current.volume = 0.5; // Lower volume for background music
+      }
 
       // Preload sounds
       paddleHitSound.current.load();
       wallHitSound.current.load();
       scoreSound.current.load();
+      gameStartSound.current.load();
+      gameEndSound.current.load();
+      backgroundMusic.current.load();
     } catch (error) {
       console.error("Error loading sound files:", error);
     }
 
     return () => {
+      // Clean up audio resources
       paddleHitSound.current = null;
       wallHitSound.current = null;
       scoreSound.current = null;
+      gameStartSound.current = null;
+      gameEndSound.current = null;
+      
+      if (backgroundMusic.current) {
+        backgroundMusic.current.pause();
+        backgroundMusic.current = null;
+      }
     };
   }, []);
 
   // Play sound safely
   const playSound = (sound: HTMLAudioElement | null) => {
-    if (sound) {
+    if (sound && soundEnabled) {
       sound.currentTime = 0;
       sound.play().catch((err) => console.error("Error playing sound:", err));
     }
   };
+
+  // Manage background music
+  const updateBackgroundMusic = () => {
+    if (!backgroundMusic.current) return;
+    
+    if (gameState === "playing" && musicEnabled) {
+      backgroundMusic.current.play().catch(err => 
+        console.error("Error playing background music:", err)
+      );
+    } else {
+      backgroundMusic.current.pause();
+    }
+  };
+
+  // Update music when game state or music preference changes
+  useEffect(() => {
+    updateBackgroundMusic();
+  }, [gameState, musicEnabled]);
 
   // Reset ball to center
   const resetBall = () => {
@@ -296,6 +339,7 @@ export function PongGame() {
           if (prevPaddle.score + 1 >= WINNING_SCORE) {
             setWinner("Right Player");
             setGameState("gameOver");
+            playSound(gameEndSound.current);
           } else {
             // Reset ball position but wait until next frame for score update to be applied
             setTimeout(() => {
@@ -336,6 +380,7 @@ export function PongGame() {
           if (prevPaddle.score + 1 >= WINNING_SCORE) {
             setWinner("Left Player");
             setGameState("gameOver");
+            playSound(gameEndSound.current);
           } else {
             // Reset ball position but wait until next frame for score update to be applied
             setTimeout(() => {
@@ -381,6 +426,9 @@ export function PongGame() {
   // Start the game
   const startGame = () => {
     setGameState("playing");
+    
+    // Play start game sound
+    playSound(gameStartSound.current);
 
     // Initialize ball velocity when game starts
     setBall((prev) => ({
@@ -450,6 +498,66 @@ export function PongGame() {
         }}
       />
     ));
+  };
+
+  // Toggle button component for sound/music
+  const ToggleButton = ({ 
+    enabled, 
+    onToggle, 
+    label 
+  }: { 
+    enabled: boolean; 
+    onToggle: () => void; 
+    label: string;
+  }) => (
+    <button
+      onClick={onToggle}
+      className={`
+        relative
+        px-6 py-2 
+        ${enabled 
+          ? 'bg-white text-black' 
+          : 'bg-gray-700 text-white'
+        }
+        font-bold
+      `}
+      title={`${enabled ? 'Disable' : 'Enable'} ${label}`}
+    >
+      {/* Interlaced scan line effect */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%)",
+          backgroundSize: "100% 4px",
+          zIndex: 1
+        }}
+      />
+      
+      {/* Button content */}
+      <span className="relative z-10">{label}</span>
+    </button>
+  );
+
+  // Render audio controls
+  const renderAudioControls = () => {
+    // Only show audio controls when not playing
+    if (gameState === "playing") return null;
+
+    return (
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-6 z-30 pointer-events-auto">
+        <ToggleButton
+          enabled={soundEnabled}
+          onToggle={() => setSoundEnabled(!soundEnabled)}
+          label="SOUND"
+        />
+        <ToggleButton
+          enabled={musicEnabled}
+          onToggle={() => setMusicEnabled(!musicEnabled)}
+          label="MUSIC"
+        />
+      </div>
+    );
   };
 
   // Render game screens based on game state
@@ -556,6 +664,9 @@ export function PongGame() {
         {/* Game screens overlay */}
         {renderGameContent()}
 
+        {/* Audio controls at the bottom of the play area */}
+        {renderAudioControls()}
+
         {/* CRT scan line effect */}
         <div
           className="absolute inset-0 pointer-events-none"
@@ -563,7 +674,7 @@ export function PongGame() {
             backgroundImage:
               "linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%)",
             backgroundSize: "100% 4px",
-            zIndex: 10,
+            zIndex: 20,
           }}
         />
       </div>

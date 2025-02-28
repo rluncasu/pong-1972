@@ -25,17 +25,17 @@ This project is a faithful recreation of the iconic Pong game, originally releas
 
 ## Installation
 
-```bash
+   ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pong-1972.git
-cd pong-1972
+   git clone https://github.com/yourusername/pong-1972.git
+   cd pong-1972
 
 # Install dependencies
-npm install
+   npm install
 
 # Start the development server
-npm run dev
-```
+   npm run dev
+   ```
 
 Visit `http://localhost:3000` in your browser to play the game.
 
