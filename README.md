@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Atari Pong (1972) Clone
 
-## Getting Started
+A modern recreation of the classic Atari Pong game from 1972 using Next.js, React, and TypeScript.
 
-First, run the development server:
+## Description
+
+This project is a faithful recreation of the iconic Pong game, originally released by Atari in 1972. It features the classic two-player gameplay with simple controls and authentic visuals.
+
+## Features
+
+- Classic Pong gameplay with two-player support
+- Authentic black and white visuals with responsive design
+- Keyboard controls for both players
+- Sound effects for ball hits and scoring
+- Score tracking and game-over condition
+- Realistic physics with ball acceleration
+
+## How to Play
+
+1. Start the game by pressing the Space key or clicking the Start button
+2. Player 1 (left paddle): Use W (up) and S (down) keys to move
+3. Player 2 (right paddle): Use Arrow Up and Arrow Down keys to move
+4. First player to reach 7 points wins the game
+5. Press Enter to restart after a game ends
+
+## Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/pong-1972.git
+cd pong-1972
+
+# Install dependencies
+npm install
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit `http://localhost:3000` in your browser to play the game.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Technologies Used
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js 15.2.0
+- React 19
+- TypeScript
+- Tailwind CSS
 
-## Learn More
+## Future Improvements
 
-To learn more about Next.js, take a look at the following resources:
+- Add single-player mode with AI opponent
+- Implement mobile/touch controls
+- Add difficulty levels and game customization
+- Create multiplayer mode over network
+- Add retro CRT screen effect
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+MIT License - Feel free to use and modify as you wish!
 
-## Deploy on Vercel
+## Acknowledgments
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Original Pong game created by Allan Alcorn for Atari in 1972
+- Thanks to the Next.js and React communities for their excellent tools and documentation
