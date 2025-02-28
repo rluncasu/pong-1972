@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Face Darts - Track and Improve Your Dart Game",
-  description: "The modern way to track and improve your dart game.",
-  keywords: ["darts", "score tracking", "dart games", "statistics"],
+  title: "Retro Pong - Classic Arcade Game",
+  description: "Play the classic Pong arcade game with retro CRT effects",
+  keywords: ["pong", "arcade", "retro game", "paddle game", "classic game"],
 };
 
 export default function RootLayout({

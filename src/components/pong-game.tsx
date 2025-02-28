@@ -55,10 +55,10 @@ export function PongGame() {
 
   // Track pressed keys
   const keysPressed = useRef<Record<string, boolean>>({});
-  
+
   // Game loop reference
   const requestRef = useRef<number | null>(null);
-  
+
   // Scoring cooldown to prevent multiple score increments
   const scoringCooldown = useRef<boolean>(false);
 
@@ -104,7 +104,7 @@ export function PongGame() {
   const playSound = (sound: HTMLAudioElement | null) => {
     if (sound) {
       sound.currentTime = 0;
-      sound.play().catch(err => console.error("Error playing sound:", err));
+      sound.play().catch((err) => console.error("Error playing sound:", err));
     }
   };
 
@@ -113,28 +113,51 @@ export function PongGame() {
     setBall({
       x: GAME_WIDTH / 2 - BALL_SIZE / 2,
       y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
-      velocityX: INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1),
-      velocityY: INITIAL_BALL_SPEED * (Math.random() * 2 - 1),
+      velocityX:
+        gameState === "playing"
+          ? INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1)
+          : 0,
+      velocityY:
+        gameState === "playing"
+          ? INITIAL_BALL_SPEED * (Math.random() * 2 - 1)
+          : 0,
     });
   };
 
   // Reset entire game
   const resetGame = () => {
+    // Reset scoring cooldown
+    scoringCooldown.current = false;
+
     setLeftPaddle({
       x: 50,
       y: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
       score: 0,
     });
-    
+
     setRightPaddle({
       x: GAME_WIDTH - 50 - PADDLE_WIDTH,
       y: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
       score: 0,
     });
-    
-    resetBall();
+
+    // Reset ball with zero velocity initially
+    setBall({
+      x: GAME_WIDTH / 2 - BALL_SIZE / 2,
+      y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
+      velocityX: 0,
+      velocityY: 0,
+    });
+
     setWinner(null);
     setGameState("start");
+
+    // Also reset the stuck ball prevention system
+    preventStuckBall.current = {
+      lastX: GAME_WIDTH / 2,
+      lastY: GAME_HEIGHT / 2,
+      stuckFrames: 0,
+    };
   };
 
   // Update game state
@@ -176,16 +199,18 @@ export function PongGame() {
       let newY = prev.y + prev.velocityY;
       let newVelocityX = prev.velocityX;
       let newVelocityY = prev.velocityY;
-      
+
       // Look ahead to next frame for more reliable collision detection
       const nextFrameX = newX + newVelocityX;
       const nextFrameY = newY + newVelocityY;
 
       // Check if ball is stuck (hasn't moved significantly in multiple frames)
-      if (Math.abs(prev.x - preventStuckBall.current.lastX) < 1 && 
-          Math.abs(prev.y - preventStuckBall.current.lastY) < 1) {
+      if (
+        Math.abs(prev.x - preventStuckBall.current.lastX) < 1 &&
+        Math.abs(prev.y - preventStuckBall.current.lastY) < 1
+      ) {
         preventStuckBall.current.stuckFrames++;
-        
+
         // If stuck for 10 frames, nudge the ball
         if (preventStuckBall.current.stuckFrames > 10) {
           newVelocityX *= 1.5; // Increase velocity to escape
@@ -196,7 +221,7 @@ export function PongGame() {
         // Ball is moving normally, reset stuck counter
         preventStuckBall.current.stuckFrames = 0;
       }
-      
+
       // Update last position
       preventStuckBall.current.lastX = prev.x;
       preventStuckBall.current.lastY = prev.y;
@@ -212,40 +237,48 @@ export function PongGame() {
       const COLLISION_BUFFER = 5;
 
       // Enhanced left paddle collision detection with prediction
-      const willHitLeftPaddle = 
+      const willHitLeftPaddle =
         newVelocityX < 0 && // Ball is moving left
-        (newX - COLLISION_BUFFER <= leftPaddle.x + PADDLE_WIDTH || nextFrameX - COLLISION_BUFFER <= leftPaddle.x + PADDLE_WIDTH) && // Current or next frame collision on X
+        (newX - COLLISION_BUFFER <= leftPaddle.x + PADDLE_WIDTH ||
+          nextFrameX - COLLISION_BUFFER <= leftPaddle.x + PADDLE_WIDTH) && // Current or next frame collision on X
         newX + BALL_SIZE >= leftPaddle.x &&
-        ((newY + BALL_SIZE >= currentLeftPaddleY && newY <= currentLeftPaddleY + PADDLE_HEIGHT) || // Current frame collision on Y
-         (nextFrameY + BALL_SIZE >= currentLeftPaddleY && nextFrameY <= currentLeftPaddleY + PADDLE_HEIGHT)); // Next frame collision on Y
-      
+        ((newY + BALL_SIZE >= currentLeftPaddleY &&
+          newY <= currentLeftPaddleY + PADDLE_HEIGHT) || // Current frame collision on Y
+          (nextFrameY + BALL_SIZE >= currentLeftPaddleY &&
+            nextFrameY <= currentLeftPaddleY + PADDLE_HEIGHT)); // Next frame collision on Y
+
       if (willHitLeftPaddle) {
         newVelocityX = Math.abs(newVelocityX) * 1.05; // Speed up slightly on bounce
         const paddleCenter = currentLeftPaddleY + PADDLE_HEIGHT / 2;
         const ballCenter = newY + BALL_SIZE / 2;
-        const relativePaddleIntersect = (ballCenter - paddleCenter) / (PADDLE_HEIGHT / 2);
+        const relativePaddleIntersect =
+          (ballCenter - paddleCenter) / (PADDLE_HEIGHT / 2);
         newVelocityY = INITIAL_BALL_SPEED * relativePaddleIntersect * 1.5;
         newX = leftPaddle.x + PADDLE_WIDTH; // Ensure ball is positioned at paddle edge
-        
+
         playSound(paddleHitSound.current);
       }
 
       // Enhanced right paddle collision detection with prediction
-      const willHitRightPaddle = 
+      const willHitRightPaddle =
         newVelocityX > 0 && // Ball is moving right
-        (newX + BALL_SIZE + COLLISION_BUFFER >= rightPaddle.x || nextFrameX + BALL_SIZE + COLLISION_BUFFER >= rightPaddle.x) && // Current or next frame collision on X
+        (newX + BALL_SIZE + COLLISION_BUFFER >= rightPaddle.x ||
+          nextFrameX + BALL_SIZE + COLLISION_BUFFER >= rightPaddle.x) && // Current or next frame collision on X
         newX <= rightPaddle.x + PADDLE_WIDTH &&
-        ((newY + BALL_SIZE >= currentRightPaddleY && newY <= currentRightPaddleY + PADDLE_HEIGHT) || // Current frame collision on Y
-         (nextFrameY + BALL_SIZE >= currentRightPaddleY && nextFrameY <= currentRightPaddleY + PADDLE_HEIGHT)); // Next frame collision on Y
-      
+        ((newY + BALL_SIZE >= currentRightPaddleY &&
+          newY <= currentRightPaddleY + PADDLE_HEIGHT) || // Current frame collision on Y
+          (nextFrameY + BALL_SIZE >= currentRightPaddleY &&
+            nextFrameY <= currentRightPaddleY + PADDLE_HEIGHT)); // Next frame collision on Y
+
       if (willHitRightPaddle) {
         newVelocityX = -Math.abs(newVelocityX) * 1.05; // Speed up slightly on bounce
         const paddleCenter = currentRightPaddleY + PADDLE_HEIGHT / 2;
         const ballCenter = newY + BALL_SIZE / 2;
-        const relativePaddleIntersect = (ballCenter - paddleCenter) / (PADDLE_HEIGHT / 2);
+        const relativePaddleIntersect =
+          (ballCenter - paddleCenter) / (PADDLE_HEIGHT / 2);
         newVelocityY = INITIAL_BALL_SPEED * relativePaddleIntersect * 1.5;
         newX = rightPaddle.x - BALL_SIZE; // Ensure ball is positioned at paddle edge
-        
+
         playSound(paddleHitSound.current);
       }
 
@@ -253,12 +286,12 @@ export function PongGame() {
       if (newX <= 0 && !scoringCooldown.current) {
         // Right player scores
         playSound(scoreSound.current);
-        
+
         // Set cooldown to prevent multiple score increments
         scoringCooldown.current = true;
-        
+
         // Update score with explicit function to ensure state update is applied
-        setRightPaddle(prevPaddle => {
+        setRightPaddle((prevPaddle) => {
           // Check for game over
           if (prevPaddle.score + 1 >= WINNING_SCORE) {
             setWinner("Right Player");
@@ -273,32 +306,32 @@ export function PongGame() {
               }, 100);
             }, 0);
           }
-          
+
           return {
             ...prevPaddle,
-            score: prevPaddle.score + 1
+            score: prevPaddle.score + 1,
           };
         });
-        
+
         // Return the current position to prevent incorrect state update
         return {
           ...prev,
           x: GAME_WIDTH / 2 - BALL_SIZE / 2,
           y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
           velocityX: 0,
-          velocityY: 0
+          velocityY: 0,
         };
       }
 
       if (newX + BALL_SIZE >= GAME_WIDTH && !scoringCooldown.current) {
         // Left player scores
         playSound(scoreSound.current);
-        
+
         // Set cooldown to prevent multiple score increments
         scoringCooldown.current = true;
-        
+
         // Update score with explicit function to ensure state update is applied
-        setLeftPaddle(prevPaddle => {
+        setLeftPaddle((prevPaddle) => {
           // Check for game over
           if (prevPaddle.score + 1 >= WINNING_SCORE) {
             setWinner("Left Player");
@@ -313,20 +346,20 @@ export function PongGame() {
               }, 100);
             }, 0);
           }
-          
+
           return {
             ...prevPaddle,
-            score: prevPaddle.score + 1
+            score: prevPaddle.score + 1,
           };
         });
-        
+
         // Return the current position to prevent incorrect state update
         return {
           ...prev,
           x: GAME_WIDTH / 2 - BALL_SIZE / 2,
           y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
           velocityX: 0,
-          velocityY: 0
+          velocityY: 0,
         };
       }
 
@@ -348,6 +381,14 @@ export function PongGame() {
   // Start the game
   const startGame = () => {
     setGameState("playing");
+
+    // Initialize ball velocity when game starts
+    setBall((prev) => ({
+      ...prev,
+      velocityX: INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1),
+      velocityY: INITIAL_BALL_SPEED * (Math.random() * 2 - 1),
+    }));
+
     if (!requestRef.current) {
       requestRef.current = requestAnimationFrame(gameLoop);
     }
@@ -358,12 +399,12 @@ export function PongGame() {
     // Keyboard event listeners
     const handleKeyDown = (e: KeyboardEvent) => {
       keysPressed.current[e.key] = true;
-      
+
       // Space bar to start game
       if (e.key === " " && gameState === "start") {
         startGame();
       }
-      
+
       // Enter to restart after game over
       if (e.key === "Enter" && gameState === "gameOver") {
         resetGame();
@@ -397,9 +438,9 @@ export function PongGame() {
   const renderNet = () => {
     const dashCount = 20;
     const dashHeight = GAME_HEIGHT / dashCount;
-    
+
     return Array.from({ length: dashCount }).map((_, index) => (
-      <div 
+      <div
         key={`dash-${index}`}
         className="absolute bg-white w-2"
         style={{
@@ -416,12 +457,14 @@ export function PongGame() {
     switch (gameState) {
       case "start":
         return (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white">
-            <h2 className="mb-6 text-4xl font-bold">PONG</h2>
-            <p className="mb-2">Left Paddle: W (up) and S (down)</p>
-            <p className="mb-6">Right Paddle: O (up) and L (down)</p>
-            <p className="mb-2">First to {WINNING_SCORE} points wins!</p>
-            <button 
+          <div className="absolute inset-0 flex flex-col items-center justify-around bg-black bg-opacity-80 text-white">
+            <div className="flex flex-col items-center">
+              <h2 className="mb-6 text-4xl font-bold">PONG</h2>
+              <p className="mb-2">Left Paddle: W (up) and S (down)</p>
+              <p className="mb-6">Right Paddle: O (up) and L (down)</p>
+              <p className="mb-2">First to {WINNING_SCORE} points wins!</p>
+            </div>
+            <button
               onClick={startGame}
               className="mt-6 px-6 py-2 bg-white text-black font-bold hover:bg-gray-200 transition-colors"
             >
@@ -429,17 +472,16 @@ export function PongGame() {
             </button>
           </div>
         );
-      
+
       case "gameOver":
         return (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white">
-            <h2 className="mb-6 text-4xl font-bold">GAME OVER</h2>
-            <p className="mb-6 text-2xl">{winner} Wins!</p>
-            <p className="mb-2 text-xl">Final Score</p>
-            <p className="mb-6 text-3xl">
-              {leftPaddle.score} : {rightPaddle.score}
-            </p>
-            <button 
+          <div className="absolute inset-0 flex flex-col items-center justify-around bg-black bg-opacity-80 text-white">
+            <div className="flex flex-col items-center">
+              <h2 className="mb-6 text-4xl font-bold">GAME OVER</h2>
+              <p className="mb-8 text-2xl">{winner} Wins!</p>
+              <p className="mb-6 text-xl">Final Score</p>
+            </div>
+            <button
               onClick={resetGame}
               className="mt-6 px-6 py-2 bg-white text-black font-bold hover:bg-gray-200 transition-colors"
             >
@@ -447,7 +489,7 @@ export function PongGame() {
             </button>
           </div>
         );
-      
+
       default:
         return null;
     }
@@ -456,23 +498,28 @@ export function PongGame() {
   // Render the game with CRT effect
   return (
     <div className="flex flex-col items-center justify-center">
-      <div className="mb-4 text-3xl font-bold text-white">
-        <span>{leftPaddle.score}</span>
-        <span className="mx-8">:</span>
-        <span>{rightPaddle.score}</span>
-      </div>
-      
-      <div 
+      <div
         className="relative bg-black border-t-2 border-b-2 border-white overflow-hidden retro-crt"
-        style={{ 
-          width: GAME_WIDTH, 
+        style={{
+          width: GAME_WIDTH,
           height: GAME_HEIGHT,
-          boxShadow: "0 0 10px rgba(255, 255, 255, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5)"
+          boxShadow:
+            "0 0 10px rgba(255, 255, 255, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5)",
         }}
       >
         {/* Net */}
         {renderNet()}
-        
+
+        {/* Score centered in the play area */}
+        <div className="absolute inset-0 flex justify-center items-center z-10 pointer-events-none">
+          <div className="text-9xl font-bold text-white opacity-25 mr-16">
+            {leftPaddle.score}
+          </div>
+          <div className="text-9xl font-bold text-white opacity-25 ml-16">
+            {rightPaddle.score}
+          </div>
+        </div>
+
         {/* Left paddle */}
         <div
           className="absolute bg-white"
@@ -483,7 +530,7 @@ export function PongGame() {
             height: PADDLE_HEIGHT,
           }}
         />
-        
+
         {/* Right paddle */}
         <div
           className="absolute bg-white"
@@ -494,7 +541,7 @@ export function PongGame() {
             height: PADDLE_HEIGHT,
           }}
         />
-        
+
         {/* Ball */}
         <div
           className="absolute bg-white"
@@ -510,20 +557,16 @@ export function PongGame() {
         {renderGameContent()}
 
         {/* CRT scan line effect */}
-        <div 
+        <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%)",
+            backgroundImage:
+              "linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%)",
             backgroundSize: "100% 4px",
-            zIndex: 10
+            zIndex: 10,
           }}
         />
       </div>
-      
-      <div className="mt-6 text-sm text-gray-300">
-        <p>Left Paddle: W (up) and S (down)</p>
-        <p>Right Paddle: O (up) and L (down)</p>
-      </div>
     </div>
   );
-} 
+}
