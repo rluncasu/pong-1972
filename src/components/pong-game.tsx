@@ -9,7 +9,7 @@ const PADDLE_WIDTH = 15;
 const PADDLE_HEIGHT = 100;
 const BALL_SIZE = 15;
 const PADDLE_SPEED = 10;
-const INITIAL_BALL_SPEED = 5;
+const INITIAL_BALL_SPEED = 2.5;
 const WINNING_SCORE = 7;
 
 // Types
@@ -63,6 +63,17 @@ export function PongGame() {
   const paddleHitSound = useRef<HTMLAudioElement | null>(null);
   const wallHitSound = useRef<HTMLAudioElement | null>(null);
   const scoreSound = useRef<HTMLAudioElement | null>(null);
+
+  // Safety check to prevent ball from getting stuck
+  const preventStuckBall = useRef<{
+    lastX: number;
+    lastY: number;
+    stuckFrames: number;
+  }>({
+    lastX: GAME_WIDTH / 2,
+    lastY: GAME_HEIGHT / 2,
+    stuckFrames: 0,
+  });
 
   // Initialize audio elements
   useEffect(() => {
@@ -127,6 +138,10 @@ export function PongGame() {
   const updateGameState = () => {
     if (gameState !== "playing") return;
 
+    // Track paddle positions for collision detection
+    let currentLeftPaddleY = leftPaddle.y;
+    let currentRightPaddleY = rightPaddle.y;
+
     // Move paddles based on key presses
     setLeftPaddle((prev) => {
       let newY = prev.y;
@@ -136,6 +151,7 @@ export function PongGame() {
       if (keysPressed.current["s"] || keysPressed.current["S"]) {
         newY = Math.min(GAME_HEIGHT - PADDLE_HEIGHT, prev.y + PADDLE_SPEED);
       }
+      currentLeftPaddleY = newY; // Update for collision detection
       return { ...prev, y: newY };
     });
 
@@ -147,6 +163,7 @@ export function PongGame() {
       if (keysPressed.current["ArrowDown"]) {
         newY = Math.min(GAME_HEIGHT - PADDLE_HEIGHT, prev.y + PADDLE_SPEED);
       }
+      currentRightPaddleY = newY; // Update for collision detection
       return { ...prev, y: newY };
     });
 
@@ -156,6 +173,30 @@ export function PongGame() {
       let newY = prev.y + prev.velocityY;
       let newVelocityX = prev.velocityX;
       let newVelocityY = prev.velocityY;
+      
+      // Look ahead to next frame for more reliable collision detection
+      const nextFrameX = newX + newVelocityX;
+      const nextFrameY = newY + newVelocityY;
+
+      // Check if ball is stuck (hasn't moved significantly in multiple frames)
+      if (Math.abs(prev.x - preventStuckBall.current.lastX) < 1 && 
+          Math.abs(prev.y - preventStuckBall.current.lastY) < 1) {
+        preventStuckBall.current.stuckFrames++;
+        
+        // If stuck for 10 frames, nudge the ball
+        if (preventStuckBall.current.stuckFrames > 10) {
+          newVelocityX *= 1.5; // Increase velocity to escape
+          newVelocityY = INITIAL_BALL_SPEED * (Math.random() * 2 - 1); // Randomize Y direction
+          preventStuckBall.current.stuckFrames = 0;
+        }
+      } else {
+        // Ball is moving normally, reset stuck counter
+        preventStuckBall.current.stuckFrames = 0;
+      }
+      
+      // Update last position
+      preventStuckBall.current.lastX = prev.x;
+      preventStuckBall.current.lastY = prev.y;
 
       // Collision with top and bottom walls
       if (newY <= 0 || newY + BALL_SIZE >= GAME_HEIGHT) {
@@ -164,36 +205,43 @@ export function PongGame() {
         playSound(wallHitSound.current);
       }
 
-      // Collision with left paddle
-      if (
-        newX <= leftPaddle.x + PADDLE_WIDTH &&
-        newX >= leftPaddle.x &&
-        newY + BALL_SIZE >= leftPaddle.y &&
-        newY <= leftPaddle.y + PADDLE_HEIGHT
-      ) {
+      // Add a collision buffer for more reliable detection
+      const COLLISION_BUFFER = 5;
+
+      // Enhanced left paddle collision detection with prediction
+      const willHitLeftPaddle = 
+        newVelocityX < 0 && // Ball is moving left
+        (newX - COLLISION_BUFFER <= leftPaddle.x + PADDLE_WIDTH || nextFrameX - COLLISION_BUFFER <= leftPaddle.x + PADDLE_WIDTH) && // Current or next frame collision on X
+        newX + BALL_SIZE >= leftPaddle.x &&
+        ((newY + BALL_SIZE >= currentLeftPaddleY && newY <= currentLeftPaddleY + PADDLE_HEIGHT) || // Current frame collision on Y
+         (nextFrameY + BALL_SIZE >= currentLeftPaddleY && nextFrameY <= currentLeftPaddleY + PADDLE_HEIGHT)); // Next frame collision on Y
+      
+      if (willHitLeftPaddle) {
         newVelocityX = Math.abs(newVelocityX) * 1.05; // Speed up slightly on bounce
-        const paddleCenter = leftPaddle.y + PADDLE_HEIGHT / 2;
+        const paddleCenter = currentLeftPaddleY + PADDLE_HEIGHT / 2;
         const ballCenter = newY + BALL_SIZE / 2;
         const relativePaddleIntersect = (ballCenter - paddleCenter) / (PADDLE_HEIGHT / 2);
-        newVelocityY = INITIAL_BALL_SPEED * relativePaddleIntersect;
-        newX = leftPaddle.x + PADDLE_WIDTH;
+        newVelocityY = INITIAL_BALL_SPEED * relativePaddleIntersect * 1.5;
+        newX = leftPaddle.x + PADDLE_WIDTH; // Ensure ball is positioned at paddle edge
         
         playSound(paddleHitSound.current);
       }
 
-      // Collision with right paddle
-      if (
-        newX + BALL_SIZE >= rightPaddle.x &&
+      // Enhanced right paddle collision detection with prediction
+      const willHitRightPaddle = 
+        newVelocityX > 0 && // Ball is moving right
+        (newX + BALL_SIZE + COLLISION_BUFFER >= rightPaddle.x || nextFrameX + BALL_SIZE + COLLISION_BUFFER >= rightPaddle.x) && // Current or next frame collision on X
         newX <= rightPaddle.x + PADDLE_WIDTH &&
-        newY + BALL_SIZE >= rightPaddle.y &&
-        newY <= rightPaddle.y + PADDLE_HEIGHT
-      ) {
+        ((newY + BALL_SIZE >= currentRightPaddleY && newY <= currentRightPaddleY + PADDLE_HEIGHT) || // Current frame collision on Y
+         (nextFrameY + BALL_SIZE >= currentRightPaddleY && nextFrameY <= currentRightPaddleY + PADDLE_HEIGHT)); // Next frame collision on Y
+      
+      if (willHitRightPaddle) {
         newVelocityX = -Math.abs(newVelocityX) * 1.05; // Speed up slightly on bounce
-        const paddleCenter = rightPaddle.y + PADDLE_HEIGHT / 2;
+        const paddleCenter = currentRightPaddleY + PADDLE_HEIGHT / 2;
         const ballCenter = newY + BALL_SIZE / 2;
         const relativePaddleIntersect = (ballCenter - paddleCenter) / (PADDLE_HEIGHT / 2);
-        newVelocityY = INITIAL_BALL_SPEED * relativePaddleIntersect;
-        newX = rightPaddle.x - BALL_SIZE;
+        newVelocityY = INITIAL_BALL_SPEED * relativePaddleIntersect * 1.5;
+        newX = rightPaddle.x - BALL_SIZE; // Ensure ball is positioned at paddle edge
         
         playSound(paddleHitSound.current);
       }
