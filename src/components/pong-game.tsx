@@ -9,7 +9,7 @@ const PADDLE_WIDTH = 15;
 const PADDLE_HEIGHT = 100;
 const BALL_SIZE = 15;
 const PADDLE_SPEED = 10;
-const INITIAL_BALL_SPEED = 2.5;
+const INITIAL_BALL_SPEED = 3.125;
 const WINNING_SCORE = 7;
 
 // Types
@@ -58,6 +58,9 @@ export function PongGame() {
   
   // Game loop reference
   const requestRef = useRef<number | null>(null);
+  
+  // Scoring cooldown to prevent multiple score increments
+  const scoringCooldown = useRef<boolean>(false);
 
   // Audio references
   const paddleHitSound = useRef<HTMLAudioElement | null>(null);
@@ -157,10 +160,10 @@ export function PongGame() {
 
     setRightPaddle((prev) => {
       let newY = prev.y;
-      if (keysPressed.current["ArrowUp"]) {
+      if (keysPressed.current["o"] || keysPressed.current["O"]) {
         newY = Math.max(0, prev.y - PADDLE_SPEED);
       }
-      if (keysPressed.current["ArrowDown"]) {
+      if (keysPressed.current["l"] || keysPressed.current["L"]) {
         newY = Math.min(GAME_HEIGHT - PADDLE_HEIGHT, prev.y + PADDLE_SPEED);
       }
       currentRightPaddleY = newY; // Update for collision detection
@@ -247,40 +250,84 @@ export function PongGame() {
       }
 
       // Scoring: Ball goes beyond left or right boundary
-      if (newX <= 0) {
+      if (newX <= 0 && !scoringCooldown.current) {
         // Right player scores
         playSound(scoreSound.current);
         
-        const newScore = rightPaddle.score + 1;
-        setRightPaddle((p) => ({ ...p, score: newScore }));
+        // Set cooldown to prevent multiple score increments
+        scoringCooldown.current = true;
         
-        // Check for game over
-        if (newScore >= WINNING_SCORE) {
-          setWinner("Right Player");
-          setGameState("gameOver");
-        } else {
-          resetBall();
-        }
+        // Update score with explicit function to ensure state update is applied
+        setRightPaddle(prevPaddle => {
+          // Check for game over
+          if (prevPaddle.score + 1 >= WINNING_SCORE) {
+            setWinner("Right Player");
+            setGameState("gameOver");
+          } else {
+            // Reset ball position but wait until next frame for score update to be applied
+            setTimeout(() => {
+              resetBall();
+              // Reset cooldown after ball is reset
+              setTimeout(() => {
+                scoringCooldown.current = false;
+              }, 100);
+            }, 0);
+          }
+          
+          return {
+            ...prevPaddle,
+            score: prevPaddle.score + 1
+          };
+        });
         
-        return prev; // Return previous state as resetBall will update
+        // Return the current position to prevent incorrect state update
+        return {
+          ...prev,
+          x: GAME_WIDTH / 2 - BALL_SIZE / 2,
+          y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
+          velocityX: 0,
+          velocityY: 0
+        };
       }
 
-      if (newX + BALL_SIZE >= GAME_WIDTH) {
+      if (newX + BALL_SIZE >= GAME_WIDTH && !scoringCooldown.current) {
         // Left player scores
         playSound(scoreSound.current);
         
-        const newScore = leftPaddle.score + 1;
-        setLeftPaddle((p) => ({ ...p, score: newScore }));
+        // Set cooldown to prevent multiple score increments
+        scoringCooldown.current = true;
         
-        // Check for game over
-        if (newScore >= WINNING_SCORE) {
-          setWinner("Left Player");
-          setGameState("gameOver");
-        } else {
-          resetBall();
-        }
+        // Update score with explicit function to ensure state update is applied
+        setLeftPaddle(prevPaddle => {
+          // Check for game over
+          if (prevPaddle.score + 1 >= WINNING_SCORE) {
+            setWinner("Left Player");
+            setGameState("gameOver");
+          } else {
+            // Reset ball position but wait until next frame for score update to be applied
+            setTimeout(() => {
+              resetBall();
+              // Reset cooldown after ball is reset
+              setTimeout(() => {
+                scoringCooldown.current = false;
+              }, 100);
+            }, 0);
+          }
+          
+          return {
+            ...prevPaddle,
+            score: prevPaddle.score + 1
+          };
+        });
         
-        return prev; // Return previous state as resetBall will update
+        // Return the current position to prevent incorrect state update
+        return {
+          ...prev,
+          x: GAME_WIDTH / 2 - BALL_SIZE / 2,
+          y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
+          velocityX: 0,
+          velocityY: 0
+        };
       }
 
       return {
@@ -372,7 +419,7 @@ export function PongGame() {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white">
             <h2 className="mb-6 text-4xl font-bold">PONG</h2>
             <p className="mb-2">Left Paddle: W (up) and S (down)</p>
-            <p className="mb-6">Right Paddle: Arrow Up and Arrow Down</p>
+            <p className="mb-6">Right Paddle: O (up) and L (down)</p>
             <p className="mb-2">First to {WINNING_SCORE} points wins!</p>
             <button 
               onClick={startGame}
@@ -475,7 +522,7 @@ export function PongGame() {
       
       <div className="mt-6 text-sm text-gray-300">
         <p>Left Paddle: W (up) and S (down)</p>
-        <p>Right Paddle: Arrow Up and Arrow Down</p>
+        <p>Right Paddle: O (up) and L (down)</p>
       </div>
     </div>
   );
